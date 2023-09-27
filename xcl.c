@@ -156,7 +156,7 @@ static void characters(void *userData,const char *s,int len) {
 static void processingInstruction(void *userData,
     const char *target,const char *data) {
   if(strcmp(PIXGFILE,target)==0) {
-    if(xgfile) m_free(xgfile); 
+    if(xgfile) m_free(xgfile);
     xgfile=s_clone((char*)data);
   } else if(strcmp(PIXGPOS,target)==0) {
     if(xgpos) m_free(xgpos);
@@ -223,7 +223,7 @@ static void usage(void) {(*er_printf)("usage: rnv {-[qnspc"
 #endif
 "vh?]} schema.rnc {document.xml}\n");}
 
-int main(int argc,char **argv) {
+int xcl_main(int argc,char **argv) {
   init();
 
   peipe=0; verbose=1; nexp=NEXP; rnck=0;
@@ -281,3 +281,7 @@ int main(int argc,char **argv) {
 
   return ok?EXIT_SUCCESS:EXIT_FAILURE;
 }
+
+#if !defined(SUPPRESS_MAIN)
+int main(int argc, char ** argv) { return xcl_main(argc, argv); }
+#endif
