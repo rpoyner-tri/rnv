@@ -156,7 +156,7 @@ static void characters(void *userData,const char *s,int len) {
 static void processingInstruction(void *userData,
     const char *target,const char *data) {
   if(strcmp(PIXGFILE,target)==0) {
-    if(xgfile) m_free(xgfile); 
+    if(xgfile) m_free(xgfile);
     xgfile=s_clone((char*)data);
   } else if(strcmp(PIXGPOS,target)==0) {
     if(xgpos) m_free(xgpos);
@@ -173,11 +173,13 @@ static int pipeout(void *buf,int len) {
   }
 }
 
-static int process(int fd) {
+typedef int (*READABLE)(void*, void*, int);
+
+static int process_readable(void* read_data, READABLE read_fn) {
   void *buf; int len;
   for(;;) {
     buf=XML_GetBuffer(expat,BUFSIZE);
-    len=read(fd,buf,BUFSIZE);
+    len=read_fn(read_data,buf,BUFSIZE);
     if(len<0) {
       error_handler(XCL_ER_IO,xml,strerror(errno));
       goto ERROR;
@@ -190,9 +192,50 @@ static int process(int fd) {
 
 PARSE_ERROR:
   error_handler(XCL_ER_XML,XML_ErrorString(XML_GetErrorCode(expat)));
-  while(peipe&&(len=read(fd,buf,BUFSIZE))!=0) peipe=peipe&&pipeout(buf,len);
+  while(peipe&&(len=read_fn(read_data,buf,BUFSIZE))!=0) {
+    peipe=peipe&&pipeout(buf,len);
+  }
 ERROR:
   return 0;
+}
+
+static int fd_read(void* read_data, void* buf, int len) {
+  int fd = *(int*)read_data;
+  return read(fd, buf, len);
+}
+
+static int process(int fd) {
+  return process_readable(&fd, fd_read);
+}
+
+int xcl_process_fd(int fd) {
+  return process(fd);
+}
+
+struct MemBlock {
+  void* buf;
+  int len;
+  int cursor;
+} MemBlock;
+
+static int memory_read(void* read_data, void* buf, int len) {
+  struct MemBlock* mem_block = (struct MemBlock*)read_data;
+  int remaining = mem_block->len - mem_block->cursor;
+  if (remaining <= 0) { return 0; }
+  int result;
+  if (remaining > len) {
+    result = len;
+  } else {
+    result = remaining;
+  }
+  memcpy(buf, (char*)(mem_block->buf) + mem_block->cursor, result);
+  mem_block->cursor += result;
+  return result;
+}
+
+int xcl_process_memory(void* inbuf, int inlen) {
+  struct MemBlock mem_block = { inbuf, inlen, 0 };
+  return process_readable(&mem_block, memory_read);
 }
 
 static int externalEntityRef(XML_Parser p,const char *context,
